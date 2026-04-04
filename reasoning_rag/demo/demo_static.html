@@ -1,0 +1,681 @@
+<!DOCTYPE html><html lang="en"><head><meta name="x-poe-datastore-behavior" content="local_only"><meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reasoning RAG · Chat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:         #0d1117;
+    --surface:    #161b22;
+    --surface-2:  #1c2128;
+    --border:     #21262d;
+    --border-2:   #2a3040;
+    --text-1:     #e6edf3;
+    --text-2:     #8b949e;
+    --text-3:     #484f58;
+    --accent:     #4493f8;
+    --accent-dim: #1b3558;
+    --green:      #3fb950;
+    --green-dim:  #1a3824;
+    --teal:       #39c5cf;
+    --teal-dim:   #112830;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text-1);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header ──────────────────────────────── */
+  .header {
+    padding: 14px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .header-logo {
+    width: 34px; height: 34px;
+    background: linear-gradient(135deg, #1e4a6e 0%, #0f2a42 100%);
+    border: 1px solid #264a6e;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .header-info { flex: 1; }
+  .header-title { font-size: 14px; font-weight: 600; color: var(--text-1); }
+  .header-sub   { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+  .status {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--text-3);
+  }
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px #3fb95055;
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: .4; }
+  }
+
+  /* ── Chat area ───────────────────────────── */
+  .chat-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    scroll-behavior: smooth;
+  }
+  .chat-area::-webkit-scrollbar { width: 5px; }
+  .chat-area::-webkit-scrollbar-track { background: transparent; }
+  .chat-area::-webkit-scrollbar-thumb { background: #2a3040; border-radius: 4px; }
+
+  .thread {
+    max-width: 780px;
+    margin: 0 auto;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* ── User bubble ─────────────────────────── */
+  .user-row {
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .user-bubble {
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    border-radius: 18px 4px 18px 18px;
+    padding: 12px 18px;
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--text-1);
+    max-width: 560px;
+  }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600;
+    flex-shrink: 0; margin-top: 2px;
+  }
+  .avatar-user {
+    background: #1e2a3e;
+    border: 1px solid #2d3d55;
+    color: #5a88b0;
+  }
+  .avatar-ai {
+    background: linear-gradient(135deg, #1a3a58, #0f2236);
+    border: 1px solid #264a6e;
+    color: var(--accent);
+  }
+
+  /* ── AI card ─────────────────────────────── */
+  .ai-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .ai-card {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px 18px 18px 18px;
+    overflow: hidden;
+    animation: fadeUp .35s ease both;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Answer block */
+  .answer-block {
+    padding: 22px 24px 20px;
+  }
+  .answer-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .answer-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+  }
+  .conf-badge {
+    padding: 2px 10px;
+    background: var(--green-dim);
+    border: 1px solid #2a5a3a;
+    border-radius: 20px;
+    font-size: 10px;
+    color: var(--green);
+    font-weight: 500;
+  }
+  .answer-text {
+    font-size: 15px;
+    line-height: 1.8;
+    color: var(--text-1);
+  }
+  .answer-text em {
+    color: #79b8ff;
+    font-style: normal;
+    font-weight: 500;
+  }
+
+  /* ── Divider ─────────────────────────────── */
+  .divider { height: 1px; background: var(--border); }
+
+  /* ── Analysis toggle ─────────────────────── */
+  .analysis-block { padding: 14px 24px; }
+  .toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    background: none;
+    border: none;
+    padding: 0;
+  }
+  .toggle-btn:hover .toggle-label { color: var(--text-2); }
+  .toggle-label {
+    font-size: 10.5px;
+    color: var(--text-3);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    transition: color .2s;
+  }
+  .toggle-chevron {
+    color: var(--text-3);
+    font-size: 9px;
+    transition: transform .25s ease, color .2s;
+  }
+  .toggle-btn.open .toggle-chevron { transform: rotate(180deg); }
+
+  /* Analysis body */
+  .analysis-body {
+    margin-top: 16px;
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+    animation: fadeIn .2s ease;
+  }
+  .analysis-body.show { display: flex; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .stat-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .stat-card-title {
+    font-size: 9.5px;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    font-weight: 600;
+    margin-bottom: 9px;
+  }
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 3.5px 0;
+  }
+  .stat-k { font-size: 11.5px; color: var(--text-3); }
+  .stat-v { font-size: 11.5px; color: var(--text-2); font-weight: 500; font-family: 'JetBrains Mono', monospace; }
+
+  /* Reasoning path */
+  .path-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .section-title {
+    font-size: 9.5px;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .path-steps { display: flex; flex-direction: column; }
+  .path-step { display: flex; gap: 12px; }
+  .step-col { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+  .step-node {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--border-2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-3);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .step-connector { flex: 1; width: 1px; background: var(--border); min-height: 10px; }
+  .step-content { padding: 2px 0 14px; }
+  .step-type {
+    font-size: 9.5px;
+    font-weight: 600;
+    color: var(--teal);
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    margin-bottom: 2px;
+  }
+  .step-desc { font-size: 12px; color: var(--text-3); line-height: 1.5; }
+
+  /* Evidence */
+  .evidence-list { display: flex; flex-direction: column; gap: 8px; }
+  .ev-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 14px;
+    transition: border-color .2s;
+  }
+  .ev-item:hover { border-color: var(--border-2); }
+  .ev-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 7px;
+  }
+  .ev-rank {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-3);
+    font-weight: 500;
+  }
+  .tag {
+    padding: 1px 8px;
+    border-radius: 4px;
+    font-size: 9.5px;
+    font-weight: 500;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .tag-rel  { background: #152233; color: #4a8ab5; border: 1px solid #1e3a52; }
+  .tag-sim  { background: #132520; color: #3a9080; border: 1px solid #1e3f38; }
+  .tag-type { background: #1e1e10; color: #7a7a3a; border: 1px solid #38381a; }
+  .ev-text {
+    font-size: 11.5px;
+    color: var(--text-3);
+    line-height: 1.6;
+    font-style: italic;
+  }
+
+  /* ── Footer meta ─────────────────────────── */
+  .msg-footer {
+    display: flex;
+    gap: 14px;
+    padding: 0 2px;
+    margin-top: 6px;
+  }
+  .msg-footer span {
+    font-size: 10px;
+    color: var(--text-3);
+  }
+
+  /* ── Input ───────────────────────────────── */
+  .input-area {
+    padding: 14px 24px 18px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .input-row {
+    max-width: 780px;
+    margin: 0 auto;
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+  }
+  .input-wrap {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border-2);
+    border-radius: 13px;
+    display: flex;
+    align-items: flex-end;
+    padding: 10px 14px;
+    transition: border-color .2s;
+  }
+  .input-wrap:focus-within { border-color: #2a4a6a; }
+  textarea.chat-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: none;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: var(--text-1);
+    line-height: 1.5;
+    max-height: 100px;
+    min-height: 22px;
+    overflow-y: auto;
+  }
+  textarea.chat-input::placeholder { color: var(--text-3); }
+  .send-btn {
+    width: 42px; height: 42px;
+    background: #152a42;
+    border: 1px solid #1e3d5c;
+    border-radius: 11px;
+    color: #5a9ed4;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px;
+    transition: background .2s, border-color .2s;
+    flex-shrink: 0;
+  }
+  .send-btn:hover { background: #1e3d5c; border-color: #2a5078; }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .stats-grid { grid-template-columns: 1fr; }
+    .chat-area  { padding: 20px 14px; }
+    .header     { padding: 12px 16px; }
+    .input-area { padding: 12px 14px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-logo">🧬</div>
+  <div class="header-info">
+    <div class="header-title">Reasoning RAG</div>
+    <div class="header-sub">BioASQ · Multi-hop Retrieval</div>
+  </div>
+  <div class="status">
+    <div class="status-dot"></div>
+    Online
+  </div>
+</div>
+
+<!-- Chat -->
+<div class="chat-area" id="chatArea">
+  <div class="thread">
+
+    <!-- User message -->
+    <div class="user-row">
+      <div class="user-bubble">
+        Does the Oncotype DX test work with paraffin embedded tissues?
+      </div>
+      <div class="avatar avatar-user">U</div>
+    </div>
+
+    <!-- AI response -->
+    <div class="ai-row">
+      <div class="avatar avatar-ai">AI</div>
+      <div style="flex:1; min-width:0;">
+        <div class="ai-card">
+
+          <!-- Answer -->
+          <div class="answer-block">
+            <div class="answer-meta">
+              <span class="answer-label">Answer</span>
+              <span class="conf-badge">Confidence 76.6%</span>
+            </div>
+            <div class="answer-text">
+              Yes, the Oncotype DX test works with <em>paraffin-embedded tissue</em>.<br><br>
+              This conclusion is directly supported by the two highest-quality evidence sources, which explicitly state this fact. The remaining evidence discusses related topics — such as proteomic analysis of FFPE tissue or the Oncomine Dx Target Test — but does not contradict this finding.
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Analysis (collapsible) -->
+          <div class="analysis-block">
+            <button class="toggle-btn" id="toggleBtn" onclick="toggleAnalysis()">
+              <span class="toggle-label">Analysis &amp; Sources</span>
+              <span class="toggle-chevron" id="chevron">▼</span>
+            </button>
+
+            <div class="analysis-body" id="analysisBody">
+
+              <!-- Stats -->
+              <div class="stats-grid">
+                <div class="stat-card">
+                  <div class="stat-card-title">Query Analysis</div>
+                  <div class="stat-row">
+                    <span class="stat-k">Complexity</span>
+                    <span class="stat-v">0.15 · Simple</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-k">Query type</span>
+                    <span class="stat-v">compound</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-k">Depth</span>
+                    <span class="stat-v">shallow</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-k">Decomposed</span>
+                    <span class="stat-v">No</span>
+                  </div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-card-title">Retrieval Stats</div>
+                  <div class="stat-row">
+                    <span class="stat-k">Hops</span>
+                    <span class="stat-v">3</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-k">Avg similarity</span>
+                    <span class="stat-v">0.646</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-k">Evidence total</span>
+                    <span class="stat-v">8</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-k">High quality</span>
+                    <span class="stat-v">8 / 8</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Reasoning path -->
+              <div class="path-card">
+                <div class="section-title">Reasoning Path</div>
+                <div class="path-steps">
+                  <div class="path-step">
+                    <div class="step-col">
+                      <div class="step-node">1</div>
+                      <div class="step-connector"></div>
+                    </div>
+                    <div class="step-content">
+                      <div class="step-type">Analysis</div>
+                      <div class="step-desc">Analyzed question complexity: 0.15 — classified as simple</div>
+                    </div>
+                  </div>
+                  <div class="path-step">
+                    <div class="step-col">
+                      <div class="step-node">2</div>
+                      <div class="step-connector"></div>
+                    </div>
+                    <div class="step-content">
+                      <div class="step-type">Retrieval</div>
+                      <div class="step-desc">Performed multi-hop retrieval across 3 hops</div>
+                    </div>
+                  </div>
+                  <div class="path-step">
+                    <div class="step-col">
+                      <div class="step-node">3</div>
+                      <div class="step-connector"></div>
+                    </div>
+                    <div class="step-content">
+                      <div class="step-type">Integration</div>
+                      <div class="step-desc">Integrated and validated 8 evidence pieces via weighted_fusion</div>
+                    </div>
+                  </div>
+                  <div class="path-step">
+                    <div class="step-col">
+                      <div class="step-node">4</div>
+                    </div>
+                    <div class="step-content">
+                      <div class="step-type">Generation</div>
+                      <div class="step-desc">Synthesized final answer using DeepSeek LLM</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Evidence -->
+              <div>
+                <div class="section-title" style="margin-bottom:10px;">Top Evidence Sources</div>
+                <div class="evidence-list">
+
+                  <div class="ev-item">
+                    <div class="ev-meta">
+                      <span class="ev-rank">#1</span>
+                      <span class="tag tag-rel">Relevance 0.855</span>
+                      <span class="tag tag-sim">Similarity 0.916</span>
+                      <span class="tag tag-type">qa_combined</span>
+                    </div>
+                    <div class="ev-text">"Q: Does the Oncotype DX test work with paraffin embedded tissues? — A: Yes, the Oncotype DX test works with paraffin embedded tissue."</div>
+                  </div>
+
+                  <div class="ev-item">
+                    <div class="ev-meta">
+                      <span class="ev-rank">#2</span>
+                      <span class="tag tag-rel">Relevance 0.817</span>
+                      <span class="tag tag-sim">Similarity 0.941</span>
+                      <span class="tag tag-type">answer</span>
+                    </div>
+                    <div class="ev-text">"Yes, the Oncotype DX test works with paraffin embedded tissue."</div>
+                  </div>
+
+                  <div class="ev-item">
+                    <div class="ev-meta">
+                      <span class="ev-rank">#3</span>
+                      <span class="tag tag-rel">Relevance 0.746</span>
+                      <span class="tag tag-sim">Similarity 0.524</span>
+                      <span class="tag tag-type">answer</span>
+                    </div>
+                    <div class="ev-text">"The Oncomine Dx Target Test (ODxTT) is a next-generation sequencing-based companion diagnostic test, that could facilitate access to multiple biomarker testing using small tissue samples…"</div>
+                  </div>
+
+                  <div class="ev-item">
+                    <div class="ev-meta">
+                      <span class="ev-rank">#4</span>
+                      <span class="tag tag-rel">Relevance 0.739</span>
+                      <span class="tag tag-sim">Similarity 0.517</span>
+                      <span class="tag tag-type">qa_combined</span>
+                    </div>
+                    <div class="ev-text">"Q: Is it possible to determine the proteome of a formalin fixed and paraffin embedded (FFPE) tissue? — A: Yes, advances in sample preparation has enabled the proteomic analysis of formalin-fixed and paraffin-embedded tissues."</div>
+                  </div>
+
+                  <div class="ev-item">
+                    <div class="ev-meta">
+                      <span class="ev-rank">#5</span>
+                      <span class="tag tag-rel">Relevance 0.675</span>
+                      <span class="tag tag-sim">Similarity 0.538</span>
+                      <span class="tag tag-type">answer</span>
+                    </div>
+                    <div class="ev-text">"Yes, advances in sample preparation has enabled the proteomic analysis of formalin-fixed and paraffin-embedded tissues."</div>
+                  </div>
+
+                </div>
+              </div>
+
+            </div><!-- /analysis-body -->
+          </div><!-- /analysis-block -->
+        </div><!-- /ai-card -->
+
+        <!-- Footer meta -->
+        <div class="msg-footer">
+          <span>Today, 14:32</span>
+          <span>·</span>
+          <span>3 hops</span>
+          <span>·</span>
+          <span>weighted_fusion</span>
+          <span>·</span>
+          <span>4 steps</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /thread -->
+</div><!-- /chat-area -->
+
+<!-- Input -->
+<div class="input-area">
+  <div class="input-row">
+    <div class="input-wrap">
+      <textarea class="chat-input" id="chatInput" rows="1" placeholder="Ask a biomedical question…" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+    </div>
+    <button class="send-btn" onclick="sendMsg()">↑</button>
+  </div>
+</div>
+
+<script>
+  // scroll to bottom on load
+  const ca = document.getElementById('chatArea');
+  ca.scrollTop = ca.scrollHeight;
+
+  function toggleAnalysis() {
+    const body = document.getElementById('analysisBody');
+    const btn  = document.getElementById('toggleBtn');
+    const chev = document.getElementById('chevron');
+    body.classList.toggle('show');
+    btn.classList.toggle('open');
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMsg();
+    }
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+  }
+
+  function sendMsg() {
+    const input = document.getElementById('chatInput');
+    const text  = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    input.style.height = 'auto';
+    // (In production this would fire the RAG pipeline)
+  }
+</script>
+
+
+</body></html>
