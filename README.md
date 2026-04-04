@@ -1,13 +1,3 @@
-*Thinking...*
-
-> The user wants the README in markdown format - they probably want me to display it as rendered markdown or provide it in a way that's clearly markdown. Actually, I think they already have it in markdown, but they want me to show the raw markdown content in a code block, or perhaps they want it formatted differently.
-> 
-> Wait, looking at my previous response, I already provided it in a markdown code block (```markdown ... ```). Maybe the user wants it displayed as actual rendered content without the code block wrapper, or maybe they want it as a proper markdown file display.
-> 
-> Actually, I think the user wants me to just output the raw markdown without the surrounding ```markdown code fence, so it renders directly in the chat. 
-> 
-> The user is asking for markdown format - since I wrapped it in a code fence before, they probably want it to render as actual markdown instead, so the headings, formatting, and structure display properly.
-
 # 🧠 Reasoning RAG
 
 基于多跳检索与推理的问答系统，支持复杂问题分解、多跳证据检索与 LLM 答案生成。
