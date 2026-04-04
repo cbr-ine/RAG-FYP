@@ -226,7 +226,3 @@ python main.py --mode build --full-index --rebuild-index
 ```
 
 ---
-
-## 📄 License
-
-MIT License
