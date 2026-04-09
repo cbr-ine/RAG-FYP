@@ -1,0 +1,1540 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Import Database · Reasoning RAG</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:             #f5f6f8;
+      --sidebar-bg:     #ffffff;
+      --card-bg:        #ffffff;
+      --border:         #e2e5ea;
+      --text-primary:   #1a1d23;
+      --text-secondary: #5a6172;
+      --text-muted:     #9aa0ae;
+      --accent:         #2563eb;
+      --accent-hover:   #1d4ed8;
+      --accent-light:   #eff6ff;
+      --accent-border:  #bfdbfe;
+      --success:        #22c55e;
+      --success-bg:     #f0fdf4;
+      --success-border: #bbf7d0;
+      --success-text:   #15803d;
+      --warning:        #f59e0b;
+      --warning-bg:     #fffbeb;
+      --warning-border: #fde68a;
+      --warning-text:   #92400e;
+      --danger:         #ef4444;
+      --danger-bg:      #fef2f2;
+      --danger-border:  #fecaca;
+      --danger-text:    #b91c1c;
+      --shadow-sm:      0 1px 3px rgba(0,0,0,.08);
+      --shadow-md:      0 4px 16px rgba(0,0,0,.10);
+      --shadow-lg:      0 8px 32px rgba(0,0,0,.12);
+      --radius:         12px;
+      --radius-sm:      8px;
+      --radius-lg:      16px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 240px;
+      min-width: 240px;
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      position: sticky;
+      top: 0;
+      box-shadow: var(--shadow-sm);
+      z-index: 20;
+    }
+
+    .sidebar-header {
+      padding: 20px 16px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--accent);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .logo-text h1 { font-size: 14px; font-weight: 700; line-height: 1.2; }
+    .logo-text p  { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    .nav-section-title {
+      padding: 16px 16px 6px;
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--text-muted);
+    }
+
+    .nav-list { padding: 0 8px; }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 10px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 13.5px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: background .15s, color .15s;
+      margin-bottom: 2px;
+    }
+
+    .nav-item:hover { background: var(--bg); color: var(--text-primary); }
+
+    .nav-item.active {
+      background: var(--accent-light);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .nav-item svg { flex-shrink: 0; }
+
+    .nav-badge {
+      margin-left: auto;
+      padding: 1px 7px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      background: var(--accent-light);
+      color: var(--accent);
+    }
+
+    .nav-item.active .nav-badge {
+      background: #dbeafe;
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .sidebar-stats {
+      background: var(--bg);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+    }
+
+    .sidebar-stats-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 10px;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .stat-row:last-child { margin-bottom: 0; }
+
+    .stat-label { font-size: 12px; color: var(--text-secondary); }
+    .stat-value { font-size: 12px; font-weight: 700; color: var(--text-primary); }
+
+    /* ── Main ── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    /* ── Top Bar ── */
+    .topbar {
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .topbar-left { display: flex; align-items: center; gap: 8px; }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+    }
+
+    .breadcrumb-sep { color: var(--text-muted); }
+    .breadcrumb a { color: var(--text-secondary); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--accent); }
+    .breadcrumb span { color: var(--text-primary); font-weight: 600; }
+
+    .topbar-right { display: flex; align-items: center; gap: 10px; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: background .2s, box-shadow .2s, transform .1s;
+      text-decoration: none;
+    }
+
+    .btn:hover { transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(37,99,235,.25);
+    }
+
+    .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 4px 12px rgba(37,99,235,.35); }
+    .btn-primary:disabled { background: var(--border); color: var(--text-muted); box-shadow: none; cursor: not-allowed; transform: none; }
+
+    .btn-outline {
+      background: #fff;
+      color: var(--text-secondary);
+      border: 1.5px solid var(--border);
+    }
+
+    .btn-outline:hover { background: var(--bg); color: var(--text-primary); border-color: #c5cad4; }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      padding: 8px 10px;
+    }
+
+    .btn-ghost:hover { background: var(--bg); color: var(--text-primary); }
+
+    .btn-danger {
+      background: var(--danger-bg);
+      color: var(--danger-text);
+      border: 1.5px solid var(--danger-border);
+    }
+
+    .btn-danger:hover { background: #fee2e2; }
+
+    /* ── Content ── */
+    .content {
+      flex: 1;
+      padding: 28px;
+      overflow-y: auto;
+    }
+
+    .content::-webkit-scrollbar { width: 5px; }
+    .content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* ── Page title ── */
+    .page-title-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .page-title h2 { font-size: 22px; font-weight: 700; }
+    .page-title p  { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
+
+    /* ── Grid ── */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .col-span-2 { grid-column: span 2; }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .card-header {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .card-header-left { display: flex; align-items: center; gap: 10px; }
+
+    .card-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .card-icon-blue   { background: var(--accent-light); }
+    .card-icon-green  { background: var(--success-bg); }
+    .card-icon-amber  { background: var(--warning-bg); }
+    .card-icon-purple { background: #f5f3ff; }
+
+    .card-title { font-size: 14.5px; font-weight: 700; }
+    .card-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .card-body { padding: 20px; }
+
+    /* ── Drop Zone ── */
+    .dropzone {
+      border: 2.5px dashed var(--border);
+      border-radius: var(--radius-lg);
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .25s, background .25s;
+      position: relative;
+      background: var(--bg);
+    }
+
+    .dropzone:hover, .dropzone.hover {
+      border-color: var(--accent);
+      background: var(--accent-light);
+    }
+
+    .dropzone.hover .dz-icon { transform: scale(1.1); }
+
+    .dropzone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .dz-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      display: block;
+      transition: transform .25s;
+    }
+
+    .dz-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .dz-subtitle {
+      font-size: 13.5px;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+    }
+
+    .dz-formats {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .fmt-tag {
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11.5px;
+      font-weight: 600;
+      border: 1.5px solid;
+    }
+
+    .fmt-json   { background: #fef9c3; color: #854d0e; border-color: #fde68a; }
+    .fmt-csv    { background: #dcfce7; color: #14532d; border-color: #bbf7d0; }
+    .fmt-tsv    { background: #dbeafe; color: #1e3a8a; border-color: var(--accent-border); }
+    .fmt-faiss  { background: #f5f3ff; color: #4c1d95; border-color: #ddd6fe; }
+    .fmt-pkl    { background: #fce7f3; color: #831843; border-color: #fbcfe8; }
+    .fmt-txt    { background: var(--bg); color: var(--text-secondary); border-color: var(--border); }
+    .fmt-sql    { background: #fff7ed; color: #7c2d12; border-color: #fed7aa; }
+
+    /* ── File Queue ── */
+    .file-queue { display: flex; flex-direction: column; gap: 10px; }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      transition: border-color .2s;
+    }
+
+    .file-item.success { border-color: var(--success-border); background: var(--success-bg); }
+    .file-item.error   { border-color: var(--danger-border);  background: var(--danger-bg);  }
+    .file-item.loading { border-color: var(--accent-border);  background: var(--accent-light); }
+
+    .file-ext-badge {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      flex-shrink: 0;
+      letter-spacing: .5px;
+    }
+
+    .file-info { flex: 1; min-width: 0; }
+
+    .file-name {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .file-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .file-progress-wrap {
+      margin-top: 7px;
+    }
+
+    .file-progress-bar {
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .file-progress-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width .4s ease;
+    }
+
+    .fill-accent  { background: var(--accent); }
+    .fill-success { background: var(--success); }
+    .fill-danger  { background: var(--danger); }
+
+    .file-progress-text {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .file-status-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .file-remove-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      transition: background .15s, color .15s;
+      flex-shrink: 0;
+    }
+
+    .file-remove-btn:hover { background: #fee2e2; color: var(--danger); }
+
+    /* ── Config Panel ── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group.full { grid-column: span 2; }
+
+    .form-label {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .form-label .required { color: var(--danger); margin-left: 2px; }
+
+    .form-control {
+      padding: 9px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 13.5px;
+      color: var(--text-primary);
+      background: #fff;
+      transition: border-color .2s, box-shadow .2s;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .form-control:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+    }
+
+    .form-control::placeholder { color: var(--text-muted); }
+
+    select.form-control { cursor: pointer; }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .toggle-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .toggle-row:first-child { padding-top: 0; }
+
+    .toggle-info { flex: 1; }
+    .toggle-title { font-size: 13.5px; font-weight: 600; }
+    .toggle-desc  { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    .toggle {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      flex-shrink: 0;
+      margin-left: 16px;
+    }
+
+    .toggle input { opacity: 0; width: 0; height: 0; }
+
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 11px;
+      cursor: pointer;
+      transition: background .2s;
+    }
+
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      top: 3px;
+      left: 3px;
+      transition: transform .2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    }
+
+    .toggle input:checked ~ .toggle-track { background: var(--accent); }
+    .toggle input:checked ~ .toggle-track::after { transform: translateX(18px); }
+
+    /* ── Import History Table ── */
+    .import-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .import-table th {
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--text-muted);
+      background: var(--bg);
+      border-bottom: 1.5px solid var(--border);
+    }
+
+    .import-table th:first-child { border-radius: var(--radius-sm) 0 0 0; }
+    .import-table th:last-child  { border-radius: 0 var(--radius-sm) 0 0; }
+
+    .import-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-primary);
+    }
+
+    .import-table tr:last-child td { border-bottom: none; }
+    .import-table tr:hover td { background: var(--bg); }
+
+    /* ── Status chips ── */
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11.5px;
+      font-weight: 600;
+    }
+
+    .chip-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .chip-success { background: var(--success-bg); color: var(--success-text); }
+    .chip-success .chip-dot { background: var(--success); }
+    .chip-danger  { background: var(--danger-bg);  color: var(--danger-text);  }
+    .chip-danger  .chip-dot { background: var(--danger); }
+    .chip-warning { background: var(--warning-bg); color: var(--warning-text); }
+    .chip-warning .chip-dot { background: var(--warning); }
+    .chip-blue    { background: var(--accent-light); color: var(--accent); }
+    .chip-blue    .chip-dot { background: var(--accent); }
+
+    /* ── Summary Bar ── */
+    .summary-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .summary-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .summary-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .summary-info {}
+    .summary-value {
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+
+    .summary-label { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+
+    /* ── Overall Progress ── */
+    .overall-progress {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow-sm);
+      display: none;
+    }
+
+    .overall-progress.visible { display: block; }
+
+    .op-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .op-title { font-size: 14px; font-weight: 700; }
+    .op-pct   { font-size: 18px; font-weight: 800; color: var(--accent); }
+
+    .op-bar {
+      height: 8px;
+      background: var(--bg);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+
+    .op-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #60a5fa);
+      border-radius: 4px;
+      transition: width .4s ease;
+    }
+
+    .op-meta { font-size: 12px; color: var(--text-muted); }
+
+    /* ── Toast ── */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 999;
+    }
+
+    .toast {
+      background: #fff;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      font-size: 13.5px;
+      box-shadow: var(--shadow-md);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      max-width: 340px;
+      animation: toastIn .3s ease;
+    }
+
+    .toast.toast-success { border-color: var(--success-border); color: var(--success-text); }
+    .toast.toast-error   { border-color: var(--danger-border);  color: var(--danger-text);  }
+    .toast.toast-info    { border-color: var(--accent-border);  color: var(--accent);        }
+
+    @keyframes toastIn {
+      from { transform: translateY(16px); opacity: 0; }
+      to   { transform: translateY(0);   opacity: 1; }
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .grid-2 { grid-template-columns: 1fr; }
+      .col-span-2 { grid-column: span 1; }
+      .form-grid { grid-template-columns: 1fr; }
+      .form-group.full { grid-column: span 1; }
+      .summary-bar { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      .sidebar { display: none; }
+      .content { padding: 16px; }
+      .summary-bar { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ Sidebar ══ -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🧬</div>
+      <div class="logo-text">
+        <h1>Reasoning RAG</h1>
+        <p>BioASQ · Multi-hop</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav-section-title">Workspace</div>
+  <nav class="nav-list">
+    <a class="nav-item" href="index.html">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      Chat
+    </a>
+    <a class="nav-item active" href="#">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      Import Database
+      <span class="nav-badge" id="queue-badge" style="display:none">0</span>
+    </a>
+    <a class="nav-item" href="#">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <ellipse cx="12" cy="5" rx="9" ry="3"/>
+        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+      </svg>
+      Knowledge Base
+    </a>
+    <a class="nav-item" href="#">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07M8.46 15.54a5 5 0 0 1 0-7.07"/>
+      </svg>
+      Settings
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="sidebar-stats">
+      <div class="sidebar-stats-title">DB Status</div>
+      <div class="stat-row">
+        <span class="stat-label">Total Docs</span>
+        <span class="stat-value" id="stat-docs">12,450</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Vectors</span>
+        <span class="stat-value" id="stat-vecs">12,450</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Index Size</span>
+        <span class="stat-value">2.3 GB</span>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ══ Main ══ -->
+<div class="main">
+
+  <!-- Top Bar -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="breadcrumb">
+        <a href="index.html">Reasoning RAG</a>
+        <span class="breadcrumb-sep">›</span>
+        <span>Import Database</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-outline" onclick="clearQueue()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14H6L5 6"/>
+          <path d="M10 11v6M14 11v6"/>
+        </svg>
+        Clear Queue
+      </button>
+      <button class="btn btn-primary" id="import-btn" onclick="startImport()" disabled>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        Start Import
+      </button>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- Page Title -->
+    <div class="page-title-row">
+      <div class="page-title">
+        <h2>Import Database</h2>
+        <p>Upload biomedical data files to build or update the knowledge base</p>
+      </div>
+    </div>
+
+    <!-- Summary Bar -->
+    <div class="summary-bar">
+      <div class="summary-card">
+        <div class="summary-icon card-icon-blue">📂</div>
+        <div class="summary-info">
+          <div class="summary-value" id="sum-queued">0</div>
+          <div class="summary-label">Files Queued</div>
+        </div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-icon card-icon-green">✅</div>
+        <div class="summary-info">
+          <div class="summary-value" id="sum-done">0</div>
+          <div class="summary-label">Imported</div>
+        </div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-icon card-icon-amber">⚠️</div>
+        <div class="summary-info">
+          <div class="summary-value" id="sum-errors">0</div>
+          <div class="summary-label">Errors</div>
+        </div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-icon card-icon-purple">📊</div>
+        <div class="summary-info">
+          <div class="summary-value" id="sum-records">0</div>
+          <div class="summary-label">Records Added</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overall Progress -->
+    <div class="overall-progress" id="overall-progress">
+      <div class="op-header">
+        <div class="op-title">⚡ Importing files…</div>
+        <div class="op-pct" id="op-pct">0%</div>
+      </div>
+      <div class="op-bar">
+        <div class="op-fill" id="op-fill" style="width:0%"></div>
+      </div>
+      <div class="op-meta" id="op-meta">Preparing…</div>
+    </div>
+
+    <!-- Grid -->
+    <div class="grid-2">
+
+      <!-- Drop Zone card -->
+      <div class="card col-span-2">
+        <div class="card-header">
+          <div class="card-header-left">
+            <div class="card-icon card-icon-blue">📤</div>
+            <div>
+              <div class="card-title">Upload Files</div>
+              <div class="card-subtitle">Drag & drop or click to browse</div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="dropzone" id="dropzone"
+               ondragenter="dzEnter(event)"
+               ondragleave="dzLeave(event)"
+               ondragover="event.preventDefault()"
+               ondrop="dzDrop(event)">
+            <input type="file" multiple id="file-input"
+                   accept=".json,.jsonl,.csv,.tsv,.txt,.sql,.faiss,.pkl,.parquet"
+                   onchange="handleFiles(this.files)" />
+            <span class="dz-icon">☁️</span>
+            <div class="dz-title">Drop files here, or click to browse</div>
+            <div class="dz-subtitle">
+              Supports single or batch upload · max 2 GB per file
+            </div>
+            <div class="dz-formats">
+              <span class="fmt-tag fmt-json">JSON</span>
+              <span class="fmt-tag fmt-json">JSONL</span>
+              <span class="fmt-tag fmt-csv">CSV</span>
+              <span class="fmt-tag fmt-tsv">TSV</span>
+              <span class="fmt-tag fmt-txt">TXT</span>
+              <span class="fmt-tag fmt-sql">SQL</span>
+              <span class="fmt-tag fmt-faiss">FAISS</span>
+              <span class="fmt-tag fmt-pkl">PKL</span>
+              <span class="fmt-tag fmt-csv">Parquet</span>
+            </div>
+          </div>
+
+          <!-- File Queue -->
+          <div id="file-queue" style="margin-top:16px; display:none">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+              <span style="font-size:13px;font-weight:700;color:var(--text-secondary)">
+                Queue (<span id="queue-count">0</span> files)
+              </span>
+              <button class="btn btn-ghost" style="font-size:12px;padding:4px 8px"
+                      onclick="clearQueue()">Clear all</button>
+            </div>
+            <div class="file-queue" id="file-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Config card -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <div class="card-icon card-icon-purple">⚙️</div>
+            <div>
+              <div class="card-title">Import Configuration</div>
+              <div class="card-subtitle">Parsing & indexing options</div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Collection Name <span class="required">*</span></label>
+              <input class="form-control" type="text" id="cfg-collection"
+                     placeholder="e.g. bioasq_2024" value="bioasq_documents" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Import Mode</label>
+              <select class="form-control" id="cfg-mode">
+                <option value="append">Append to existing</option>
+                <option value="overwrite">Overwrite collection</option>
+                <option value="update">Update (upsert)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Text Field</label>
+              <input class="form-control" type="text" id="cfg-text-field"
+                     placeholder="e.g. abstract, text, body" value="abstractText" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">ID Field</label>
+              <input class="form-control" type="text" id="cfg-id-field"
+                     placeholder="e.g. id, pmid, docid" value="pmid" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Embedding Model</label>
+              <select class="form-control" id="cfg-embed">
+                <option value="biobert">BioASQ-Biobert-large</option>
+                <option value="pubmedbert">PubMedBERT-base</option>
+                <option value="e5-large">E5-large-v2</option>
+                <option value="bge-m3">BGE-M3</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Chunk Size (tokens)</label>
+              <select class="form-control" id="cfg-chunk">
+                <option value="256">256</option>
+                <option value="512" selected>512</option>
+                <option value="1024">1024</option>
+                <option value="0">No chunking</option>
+              </select>
+            </div>
+            <div class="form-group full">
+              <label class="form-label">Batch Size</label>
+              <input class="form-control" type="number" id="cfg-batch"
+                     value="512" min="32" max="4096" step="32" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Options card -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <div class="card-icon card-icon-green">🔧</div>
+            <div>
+              <div class="card-title">Processing Options</div>
+              <div class="card-subtitle">Pre-processing & pipeline settings</div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-title">Auto-detect schema</div>
+              <div class="toggle-desc">Infer field names from file header</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" checked id="opt-schema" />
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-title">Build FAISS index</div>
+              <div class="toggle-desc">Generate vector index after import</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" checked id="opt-faiss" />
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-title">Deduplicate records</div>
+              <div class="toggle-desc">Skip documents with duplicate IDs</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" checked id="opt-dedup" />
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-title">Normalize text</div>
+              <div class="toggle-desc">Strip HTML, fix encoding, lowercase</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="opt-normalize" />
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-title">Extract metadata</div>
+              <div class="toggle-desc">Parse MeSH terms, authors, year</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" checked id="opt-meta" />
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-title">Validate on upload</div>
+              <div class="toggle-desc">Check required fields before import</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" checked id="opt-validate" />
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Import History card -->
+      <div class="card col-span-2">
+        <div class="card-header">
+          <div class="card-header-left">
+            <div class="card-icon card-icon-amber">📋</div>
+            <div>
+              <div class="card-title">Import History</div>
+              <div class="card-subtitle">Recent import sessions</div>
+            </div>
+          </div>
+          <button class="btn btn-ghost" style="font-size:12px" onclick="clearHistory()">
+            Clear history
+          </button>
+        </div>
+        <div class="card-body" style="padding:0">
+          <table class="import-table" id="history-table">
+            <thead>
+              <tr>
+                <th>File</th>
+                <th>Collection</th>
+                <th>Records</th>
+                <th>Duration</th>
+                <th>Status</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="history-body">
+              <!-- pre-populated demo rows -->
+              <tr>
+                <td><strong>BioASQ-training11b.json</strong></td>
+                <td>bioasq_documents</td>
+                <td>4,234</td>
+                <td>1m 12s</td>
+                <td><span class="chip chip-success"><span class="chip-dot"></span>Success</span></td>
+                <td style="color:var(--text-muted)">2025-05-20 14:32</td>
+              </tr>
+              <tr>
+                <td><strong>pubmed_abstracts.csv</strong></td>
+                <td>bioasq_documents</td>
+                <td>8,105</td>
+                <td>2m 47s</td>
+                <td><span class="chip chip-success"><span class="chip-dot"></span>Success</span></td>
+                <td style="color:var(--text-muted)">2025-05-18 09:15</td>
+              </tr>
+              <tr>
+                <td><strong>mesh_terms_2024.tsv</strong></td>
+                <td>mesh_index</td>
+                <td>—</td>
+                <td>0m 08s</td>
+                <td><span class="chip chip-danger"><span class="chip-dot"></span>Error</span></td>
+                <td style="color:var(--text-muted)">2025-05-17 16:44</td>
+              </tr>
+              <tr>
+                <td><strong>gene_summaries.jsonl</strong></td>
+                <td>gene_kb</td>
+                <td>111</td>
+                <td>0m 23s</td>
+                <td><span class="chip chip-success"><span class="chip-dot"></span>Success</span></td>
+                <td style="color:var(--text-muted)">2025-05-15 11:02</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+/* ═════════════════════════════════════════════
+   State
+═════════════════════════════════════════════ */
+let fileQueue = [];   // {id, file, status, progress, records}
+let importing = false;
+let doneCount = 0;
+let errorCount = 0;
+let totalRecords = 0;
+
+/* ═════════════════════════════════════════════
+   Drag & Drop
+═════════════════════════════════════════════ */
+function dzEnter(e) {
+  e.preventDefault();
+  document.getElementById('dropzone').classList.add('hover');
+}
+
+function dzLeave(e) {
+  if (!e.currentTarget.contains(e.relatedTarget)) {
+    document.getElementById('dropzone').classList.remove('hover');
+  }
+}
+
+function dzDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropzone').classList.remove('hover');
+  handleFiles(e.dataTransfer.files);
+}
+
+/* ═════════════════════════════════════════════
+   File handling
+═════════════════════════════════════════════ */
+function handleFiles(fileList) {
+  const allowed = ['.json','.jsonl','.csv','.tsv','.txt','.sql','.faiss','.pkl','.parquet'];
+  let added = 0;
+
+  Array.from(fileList).forEach(file => {
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!allowed.includes(ext)) {
+      showToast(`⚠️ Unsupported format: ${file.name}`, 'warning');
+      return;
+    }
+    if (fileQueue.find(f => f.file.name === file.name && f.file.size === file.size)) {
+      showToast(`Already in queue: ${file.name}`, 'info');
+      return;
+    }
+    fileQueue.push({
+      id: Date.now() + Math.random(),
+      file,
+      status: 'pending',
+      progress: 0,
+      records: 0
+    });
+    added++;
+  });
+
+  if (added) {
+    renderQueue();
+    updateSummary();
+    document.getElementById('import-btn').disabled = false;
+    showToast(`✅ ${added} file(s) added to queue`, 'success');
+  }
+
+  // reset file input
+  document.getElementById('file-input').value = '';
+}
+
+/* ═════════════════════════════════════════════
+   Render Queue
+═════════════════════════════════════════════ */
+function renderQueue() {
+  const wrap = document.getElementById('file-queue');
+  const list = document.getElementById('file-list');
+  const count = document.getElementById('queue-count');
+  const badge = document.getElementById('queue-badge');
+
+  if (fileQueue.length === 0) {
+    wrap.style.display = 'none';
+    badge.style.display = 'none';
+    return;
+  }
+
+  wrap.style.display = 'block';
+  count.textContent = fileQueue.length;
+  badge.textContent = fileQueue.length;
+  badge.style.display = 'inline-block';
+  list.innerHTML = '';
+
+  fileQueue.forEach(item => {
+    const el = document.createElement('div');
+    const cls = item.status === 'success' ? 'success'
+              : item.status === 'error'   ? 'error'
+              : item.status === 'loading' ? 'loading'
+              : '';
+    el.className = 'file-item ' + cls;
+    el.id = 'fitem-' + item.id;
+
+    const ext = item.file.name.split('.').pop().toUpperCase();
+    const size = formatSize(item.file.size);
+
+    const extColors = {
+      JSON: '#854d0e,#fef9c3', JSONL: '#854d0e,#fef9c3',
+      CSV:  '#14532d,#dcfce7', TSV:   '#1e3a8a,#dbeafe',
+      TXT:  '#374151,#f3f4f6', SQL:   '#7c2d12,#fff7ed',
+      FAISS:'#4c1d95,#f5f3ff', PKL:   '#831843,#fce7f3',
+      PARQUET: '#1e3a8a,#dbeafe'
+    };
+
+    const [fg, bg] = (extColors[ext] || '#374151,#f3f4f6').split(',');
+
+    const statusIcon = item.status === 'success' ? '✅'
+                     : item.status === 'error'   ? '❌'
+                     : item.status === 'loading' ? '⏳'
+                     : '📄';
+
+    const progressHtml = item.status !== 'pending' ? `
+      <div class="file-progress-wrap">
+        <div class="file-progress-bar">
+          <div class="file-progress-fill ${
+            item.status === 'success' ? 'fill-success' :
+            item.status === 'error'   ? 'fill-danger'  : 'fill-accent'
+          }" style="width:${item.progress}%"></div>
+        </div>
+        <div class="file-progress-text">
+          <span>${item.status === 'success' ? item.records.toLocaleString() + ' records' :
+                  item.status === 'error'   ? 'Import failed' :
+                  'Importing…'}</span>
+          <span>${item.progress}%</span>
+        </div>
+      </div>` : '';
+
+    el.innerHTML = `
+      <div class="file-ext-badge" style="color:${fg};background:${bg}">${ext}</div>
+      <div class="file-info">
+        <div class="file-name">${escHtml(item.file.name)}</div>
+        <div class="file-meta">${size}</div>
+        ${progressHtml}
+      </div>
+      <div class="file-status-icon">${statusIcon}</div>
+      ${item.status === 'pending' ? `
+        <button class="file-remove-btn" onclick="removeFile('${item.id}')" title="Remove">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>` : ''}
+    `;
+    list.appendChild(el);
+  });
+}
+
+function removeFile(id) {
+  fileQueue = fileQueue.filter(f => String(f.id) !== String(id));
+  if (fileQueue.length === 0) {
+    document.getElementById('import-btn').disabled = true;
+  }
+  renderQueue();
+  updateSummary();
+}
+
+function clearQueue() {
+  fileQueue = fileQueue.filter(f => f.status !== 'pending');
+  if (fileQueue.every(f => f.status !== 'pending')) {
+    document.getElementById('import-btn').disabled = true;
+  }
+  renderQueue();
+  updateSummary();
+}
+
+/* ═════════════════════════════════════════════
+   Import Simulation
+═════════════════════════════════════════════ */
+async function startImport() {
+  const pending = fileQueue.filter(f => f.status === 'pending');
+  if (!pending.length || importing) return;
+
+  importing = true;
+  document.getElementById('import-btn').disabled = true;
+  document.getElementById('overall-progress').classList.add('visible');
+
+  const total = pending.length;
+  let done = 0;
+
+  for (const item of pending) {
+    item.status = 'loading';
+    item.progress = 0;
+    renderQueue();
+    updateOverallProgress(done, total, item.file.name);
+
+    // simulate chunked progress
+    await simulateFileImport(item);
+
+    done++;
+    updateOverallProgress(done, total, item.file.name);
+    renderQueue();
+    updateSummary();
+    addHistoryRow(item);
+  }
+
+  importing = false;
+  document.getElementById('overall-progress').classList.remove('visible');
+  showToast(`🎉 Import complete: ${doneCount} succeeded, ${errorCount} failed`, 'success');
+
+  // update sidebar stats
+  document.getElementById('stat-docs').textContent =
+    (12450 + totalRecords).toLocaleString();
+  document.getElementById('stat-vecs').textContent =
+    (12450 + totalRecords).toLocaleString();
+}
+
+function simulateFileImport(item) {
+  return new Promise(resolve => {
+    const willFail = Math.random() < 0.1; // 10% chance failure for demo
+    const steps    = 20;
+    const stepMs   = 80 + Math.random() * 120;
+    let   step     = 0;
+
+    const timer = setInterval(() => {
+      step++;
+      item.progress = Math.round((step / steps) * 100);
+      updateFileProgress(item);
+
+      if (step >= steps) {
+        clearInterval(timer);
+        if (willFail) {
+          item.status   = 'error';
+          item.progress = 100;
+          errorCount++;
+        } else {
+          item.status   = 'success';
+          item.progress = 100;
+          item.records  = Math.floor(Math.random() * 9000) + 500;
+          doneCount++;
+          totalRecords += item.records;
+        }
+        resolve();
+      }
+    }, stepMs);
+  });
+}
+
+function updateFileProgress(item) {
+  const el = document.getElementById('fitem-' + item.id);
+  if (!el) return;
+  const fill = el.querySelector('.file-progress-fill');
+  const pct  = el.querySelector('.file-progress-text span:last-child');
+  if (fill) fill.style.width = item.progress + '%';
+  if (pct)  pct.textContent  = item.progress + '%';
+}
+
+function updateOverallProgress(done, total, currentFile) {
+  const pct = Math.round((done / total) * 100);
+  document.getElementById('op-fill').style.width  = pct + '%';
+  document.getElementById('op-pct').textContent   = pct + '%';
+  document.getElementById('op-meta').textContent  =
+    done < total
+      ? `Processing: ${currentFile} (${done}/${total})`
+      : `All ${total} file(s) processed`;
+}
+
+/* ═════════════════════════════════════════════
+   History
+═════════════════════════════════════════════ */
+function addHistoryRow(item) {
+  const tbody = document.getElementById('history-body');
+  const now   = new Date().toLocaleString('zh-CN', {
+    year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit'
+  }).replace(/\//g, '-');
+  const collection = document.getElementById('cfg-collection').value || '—';
+
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><strong>${escHtml(item.file.name)}</strong></td>
+    <td>${escHtml(collection)}</td>
+    <td>${item.status === 'success' ? item.records.toLocaleString() : '—'}</td>
+    <td>0m ${(Math.random()*120+5|0)}s</td>
+    <td>${item.status === 'success'
+      ? '<span class="chip chip-success"><span class="chip-dot"></span>Success</span>'
+      : '<span class="chip chip-danger"><span class="chip-dot"></span>Error</span>'}</td>
+    <td style="color:var(--text-muted)">${now}</td>
+  `;
+  tbody.insertBefore(tr, tbody.firstChild);
+}
+
+function clearHistory() {
+  document.getElementById('history-body').innerHTML =
+    '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted)">No import history</td></tr>';
+}
+
+/* ═════════════════════════════════════════════
+   Summary counters
+═════════════════════════════════════════════ */
+function updateSummary() {
+  document.getElementById('sum-queued').textContent  =
+    fileQueue.filter(f => f.status === 'pending').length;
+  document.getElementById('sum-done').textContent    = doneCount;
+  document.getElementById('sum-errors').textContent  = errorCount;
+  document.getElementById('sum-records').textContent = totalRecords.toLocaleString();
+}
+
+/* ═════════════════════════════════════════════
+   Helpers
+═════════════════════════════════════════════ */
+function formatSize(bytes) {
+  if (bytes < 1024)        return bytes + ' B';
+  if (bytes < 1048576)     return (bytes/1024).toFixed(1) + ' KB';
+  if (bytes < 1073741824)  return (bytes/1048576).toFixed(1) + ' MB';
+  return (bytes/1073741824).toFixed(2) + ' GB';
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(16px)';
+    toast.style.transition = 'all .3s';
+    setTimeout(() => toast.remove(), 300);
+  }, 3500);
+}
+</script>
+</body>
+</html>
