@@ -9,12 +9,16 @@ logger = logging.getLogger(__name__)
 class MultiHopRetriever:
     def __init__(self, vector_store: VectorStore, embedder: Embedder,
                  top_k: int = 5, max_hops: int = 3,
-                 similarity_threshold: float = 0.5):
+                 similarity_threshold: float = 0.5,
+                 keyword_fallback_top_k: int = 8,
+                 short_query_keyword_threshold: float = 0.25):
         self.vector_store = vector_store
         self.embedder = embedder
         self.top_k = top_k
         self.max_hops = max_hops
         self.similarity_threshold = similarity_threshold
+        self.keyword_fallback_top_k = keyword_fallback_top_k
+        self.short_query_keyword_threshold = short_query_keyword_threshold
 
     def retrieve_for_subqueries(self, subqueries: List[Dict]) -> Dict:
         """为所有子查询执行检索"""
@@ -103,18 +107,28 @@ class MultiHopRetriever:
             logger.info(f"  Hop {hop + 1}: {current_query[:100]}...")
 
             query_embedding = self.embedder.embed_single(current_query)
-            search_results = self.vector_store.search(query_embedding, self.top_k)
+            search_results = self.vector_store.search(
+                query_embedding,
+                self.top_k,
+                query_text=current_query,
+                keyword_top_k=self.keyword_fallback_top_k
+            )
             result['stats']['total_retrievals'] += 1
 
             # 过滤低相似度结果
+            query_is_short = len(current_query.split()) <= 4 or len(current_query.strip()) <= 24
+            threshold = (
+                self.short_query_keyword_threshold
+                if query_is_short else self.similarity_threshold
+            )
             filtered_results = [
                 (passage, sim) for passage, sim in search_results
-                if sim >= self.similarity_threshold
+                if sim >= threshold
             ]
 
             if not filtered_results:
                 logger.info(
-                    f"  No results above threshold ({self.similarity_threshold}) "
+                    f"  No results above threshold ({threshold}) "
                     f"at hop {hop + 1}"
                 )
                 result['hops'].append({

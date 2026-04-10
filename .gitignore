@@ -1,0 +1,8 @@
+.env
+.env.*
+__pycache__/
+*.pyc
+reasoning_rag/__pycache__/
+reasoning_rag/experiment_outputs/
+reasoning_rag/uploaded_documents/
+reasoning_rag/bioasq_index_sentence_transformers_*.pkl

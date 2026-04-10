@@ -7,10 +7,10 @@
 ## 📌 功能特性
 
 - **自动复杂度分析**：判断问题是否需要分解
-- **查询分解**：将复杂问题拆解为多个子查询（由 DeepSeek LLM 驱动，含规则回退）
+- **查询分解**：将复杂问题拆解为多个子查询（由 OpenAI-compatible LLM 驱动，含规则回退）
 - **多跳检索**：基于 FAISS 向量库进行多轮语义检索
 - **证据整合与验证**：对检索结果打分、去重、交叉验证
-- **答案生成**：由 DeepSeek LLM 合成最终答案（含简单回退方案）
+- **答案生成**：由 OpenAI-compatible LLM 合成最终答案（含简单回退方案）
 - **Web 界面**：基于 Flask 的聊天界面，可在浏览器中使用
 - **命令行交互**：支持终端直接问答
 
@@ -30,9 +30,9 @@ reasoning_rag/
 ├── vector_store.py        # FAISS 向量存储
 ├── multi_hop_retriever.py # 多跳检索
 ├── query_analyzer.py      # 问题复杂度分析
-├── query_decomposer.py    # 查询分解（DeepSeek LLM）
+├── query_decomposer.py    # 查询分解（OpenAI LLM）
 ├── evidence_integrator.py # 证据整合与验证
-├── answer_generator.py    # 答案生成（DeepSeek LLM）
+├── answer_generator.py    # 答案生成（OpenAI LLM）
 ├── evaluator.py           # 评估指标计算
 ├── requirements.txt
 └── templates/
@@ -44,7 +44,7 @@ reasoning_rag/
 ## ⚙️ 环境要求
 
 - Python 3.9+
-- （可选）[DeepSeek API Key](https://platform.deepseek.com/) — 不填则退回规则/简单合成模式
+- （可选）OpenAI API Key — 不填则退回规则/简单合成模式
 
 ---
 
@@ -63,19 +63,19 @@ cd reasoning_rag
 pip install -r requirements.txt
 ```
 
-### 3. 配置 DeepSeek API Key（可选）
+### 3. 配置 LLM API Key（推荐）
 
 不配置也能运行，但查询分解和答案生成将使用规则/简单模式，效果会下降。
 
 ```bash
-# Linux / macOS
-export DEEPSEEK_API_KEY="your_api_key_here"
+cp .env.example .env
+```
 
-# Windows CMD
-set DEEPSEEK_API_KEY=your_api_key_here
+然后编辑 `.env`：
 
-# Windows PowerShell
-$env:DEEPSEEK_API_KEY="your_api_key_here"
+```env
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-4o-mini
 ```
 
 ### 4. 构建向量索引
@@ -165,6 +165,26 @@ python main.py --mode eval --eval-size 50
 
 ---
 
+## ⚡ 最方便的运行方式
+
+配好 `.env` 后，直接在项目根目录执行：
+
+```bash
+bash run_compare.sh
+```
+
+如果想改采样数或随机种子：
+
+```bash
+EVAL_SIZE=100 SEED=123 bash run_compare.sh
+```
+
+在 macOS 上也可以直接双击：
+
+- `run_compare.command`
+
+---
+
 ## 📊 系统配置
 
 核心参数在 `config.py` 中修改：
@@ -210,7 +230,7 @@ bioasq_index.pkl                 ↓
 python main.py --mode build --full-index
 ```
 
-**Q：没有 DeepSeek API Key 能用吗？**
+**Q：没有 OpenAI API Key 能用吗？**
 
 可以。查询分解会回退到基于规则的分解，答案生成会使用关键句提取模式，功能完整但质量略低。
 

@@ -1,28 +1,33 @@
-"""子查询分解模块 - 使用 DeepSeek LLM"""
+"""子查询分解模块 - 使用 OpenAI LLM."""
 from typing import List, Dict
 import logging
-import os
-from openai import OpenAI
+from llm_provider import get_llm_client, get_model_name, get_token_limit_kwargs
 
 logger = logging.getLogger(__name__)
 
 class QueryDecomposer:
     def __init__(self, max_subqueries: int = 4):
         self.max_subqueries = max_subqueries
-
-        # 初始化 DeepSeek 客户端
-        api_key = os.getenv("DEEPSEEK_API_KEY")
-        if not api_key:
-            logger.warning("DEEPSEEK_API_KEY not found in environment. Using rule-based decomposition.")
-            self.client = None
+        self.client, self.provider = get_llm_client()
+        self.model_name = get_model_name("decomposition", self.provider)
+        self.last_llm_attempted = False
+        self.last_llm_succeeded = False
+        self.last_llm_error = None
+        if not self.client or not self.model_name:
+            logger.warning(
+                "OPENAI_API_KEY not found in environment. "
+                "Using rule-based decomposition."
+            )
         else:
-            self.client = OpenAI(
-                api_key=api_key,
-                base_url="https://api.deepseek.com"
+            logger.info(
+                f"Query decomposition LLM enabled: provider={self.provider}, model={self.model_name}"
             )
 
     def decompose(self, analysis_result: Dict) -> List[Dict]:
         """将复杂问题分解为子查询"""
+        self.last_llm_attempted = False
+        self.last_llm_succeeded = False
+        self.last_llm_error = None
         question = analysis_result['question']
 
         if not analysis_result['requires_decomposition']:
@@ -39,18 +44,21 @@ class QueryDecomposer:
         # 尝试使用 LLM 分解
         if self.client:
             try:
+                self.last_llm_attempted = True
                 subqueries = self._decompose_with_llm(question, analysis_result)
                 if subqueries:
+                    self.last_llm_succeeded = True
                     logger.info(f"LLM generated {len(subqueries)} subqueries")
                     return subqueries
             except Exception as e:
+                self.last_llm_error = str(e)
                 logger.error(f"LLM decomposition failed: {e}. Falling back to rule-based.")
 
         # 回退到基于规则的分解
         return self._decompose_with_rules(question, analysis_result)
 
     def _decompose_with_llm(self, question: str, analysis_result: Dict) -> List[Dict]:
-        """使用 DeepSeek LLM 分解问题"""
+        """使用 OpenAI LLM 分解问题"""
 
         prompt = f"""You are an expert at breaking down complex questions into simpler sub-questions for a retrieval system.
 
@@ -79,13 +87,13 @@ Instructions:
 Do not include any explanation or additional text. Only return the JSON array."""
 
         response = self.client.chat.completions.create(
-            model="deepseek-chat",
+            model=self.model_name,
             messages=[
                 {"role": "system", "content": "You are a precise question decomposition assistant. Return only valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
-            max_tokens=500
+            **get_token_limit_kwargs(self.model_name, 500)
         )
 
         # 解析响应

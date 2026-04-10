@@ -1,29 +1,36 @@
-"""答案生成模块 - 使用 DeepSeek LLM"""
-from typing import Dict, List
+"""答案生成模块 - 使用 OpenAI LLM."""
+from typing import Dict, List, Optional
 import logging
-import os
-from openai import OpenAI
+from llm_provider import get_llm_client, get_model_name, get_token_limit_kwargs
 
 logger = logging.getLogger(__name__)
 
-# 低于此相似度则认为证据与问题无关，拒绝生成答案
-MIN_ANSWER_SIMILARITY = 0.55
-
 class AnswerGenerator:
-    def __init__(self):
-        api_key = os.getenv("DEEPSEEK_API_KEY")
-        if not api_key:
-            logger.warning("DEEPSEEK_API_KEY not found in environment. Using simple synthesis.")
-            self.client = None
+    def __init__(self, min_answer_similarity: float = 0.50):
+        self.client, self.provider = get_llm_client()
+        self.model_name = get_model_name("generation", self.provider)
+        self.min_answer_similarity = min_answer_similarity
+        self.last_llm_attempted = False
+        self.last_llm_succeeded = False
+        self.last_llm_error = None
+        if not self.client or not self.model_name:
+            logger.warning(
+                "OPENAI_API_KEY not found in environment. "
+                "Using simple synthesis."
+            )
         else:
-            self.client = OpenAI(
-                api_key=api_key,
-                base_url="https://api.deepseek.com"
+            logger.info(
+                f"Answer generation LLM enabled: provider={self.provider}, model={self.model_name}"
             )
 
     def generate(self, question: str, integrated_evidence: Dict,
-                 analysis_result: Dict, retrieval_results: Dict) -> Dict:
+                 analysis_result: Dict, retrieval_results: Dict,
+                 use_abstention: bool = True,
+                 reasoning_path: Optional[List[Dict]] = None) -> Dict:
         """基于证据生成答案"""
+        self.last_llm_attempted = False
+        self.last_llm_succeeded = False
+        self.last_llm_error = None
         logger.info("Generating answer...")
 
         evidence_list = integrated_evidence['evidence']
@@ -31,48 +38,69 @@ class AnswerGenerator:
         # --- 无证据处理 ---
         if not evidence_list:
             return self._no_evidence_result(
-                question, analysis_result, retrieval_results
+                question, analysis_result, retrieval_results, reasoning_path
             )
 
         # --- 相关性检测：最高相似度低于阈值时拒绝生成 ---
         max_similarity = max(e['similarity'] for e in evidence_list)
-        if max_similarity < MIN_ANSWER_SIMILARITY:
+        if use_abstention and max_similarity < self.min_answer_similarity:
             logger.warning(
                 f"All evidence below similarity threshold "
-                f"(max={max_similarity:.3f} < {MIN_ANSWER_SIMILARITY}). "
+                f"(max={max_similarity:.3f} < {self.min_answer_similarity}). "
                 f"Relevant passage may not be in the index."
             )
-            reasoning_path = self._build_reasoning_path(
+            reasoning_path = reasoning_path or self._build_reasoning_path(
                 question, analysis_result,
                 retrieval_results['subquery_results'], evidence_list
             )
             return {
                 'answer': (
                     f"The retrieved evidence is not sufficiently relevant to answer this question "
-                    f"(best similarity: {max_similarity:.3f}, required: {MIN_ANSWER_SIMILARITY}).\n\n"
+                    f"(best similarity: {max_similarity:.3f}, required: {self.min_answer_similarity}).\n\n"
                     f"Suggestion: rebuild the index with more passages using:\n"
                     f"  python main.py --mode build --full-index --rebuild-index"
                 ),
                 'confidence': 0.0,
                 'reasoning_path': reasoning_path,
                 'sources': self._extract_sources(evidence_list),
-                'evidence_count': len(evidence_list)
+                'evidence_count': len(evidence_list),
+                'abstained': True,
+                'generation_method': 'abstained',
+                'llm_calls': 0,
+                'llm_error': None
             }
 
         # --- 正常流程 ---
-        reasoning_path = self._build_reasoning_path(
+        reasoning_path = reasoning_path or self._build_reasoning_path(
             question, analysis_result,
             retrieval_results['subquery_results'], evidence_list
         )
 
+        generation_method = 'simple'
+        llm_calls = 0
         if self.client:
             try:
+                self.last_llm_attempted = True
                 answer = self._synthesize_answer_with_llm(
                     question, evidence_list, analysis_result
                 )
+                llm_calls = 1
+                if self._is_effective_answer(answer):
+                    generation_method = 'llm'
+                    self.last_llm_succeeded = True
+                else:
+                    self.last_llm_error = "LLM returned an empty or low-information answer."
+                    logger.warning(
+                        "LLM returned an empty or low-information answer. "
+                        "Falling back to simple evidence synthesis."
+                    )
+                    answer = self._synthesize_answer_simple(question, evidence_list)
+                    generation_method = 'simple_fallback'
             except Exception as e:
+                self.last_llm_error = str(e)
                 logger.error(f"LLM answer generation failed: {e}. Using simple synthesis.")
                 answer = self._synthesize_answer_simple(question, evidence_list)
+                generation_method = 'simple_fallback'
         else:
             answer = self._synthesize_answer_simple(question, evidence_list)
 
@@ -84,29 +112,38 @@ class AnswerGenerator:
             'confidence': confidence,
             'reasoning_path': reasoning_path,
             'sources': sources,
-            'evidence_count': len(evidence_list)
+            'evidence_count': len(evidence_list),
+            'abstained': False,
+            'generation_method': generation_method,
+            'llm_calls': llm_calls,
+            'llm_error': self.last_llm_error
         }
 
         logger.info(f"Answer generated with confidence: {confidence:.3f}")
         return result
 
     def _no_evidence_result(self, question: str, analysis_result: Dict,
-                             retrieval_results: Dict) -> Dict:
+                             retrieval_results: Dict,
+                             reasoning_path: Optional[List[Dict]] = None) -> Dict:
         """无证据时的返回结构"""
         return {
             'answer': "No sufficient evidence found to answer this question.",
             'confidence': 0.0,
-            'reasoning_path': self._build_reasoning_path(
+            'reasoning_path': reasoning_path or self._build_reasoning_path(
                 question, analysis_result,
                 retrieval_results.get('subquery_results', []), []
             ),
             'sources': [],
-            'evidence_count': 0
+            'evidence_count': 0,
+            'abstained': True,
+            'generation_method': 'no_evidence',
+            'llm_calls': 0,
+            'llm_error': None
         }
 
     def _synthesize_answer_with_llm(self, question: str, evidence_list: List[Dict],
                                      analysis_result: Dict) -> str:
-        """使用 DeepSeek LLM 合成答案"""
+        """使用 OpenAI LLM 合成答案"""
         evidence_texts = []
         for i, evidence in enumerate(evidence_list[:5], 1):
             evidence_texts.append(
@@ -134,7 +171,7 @@ Instructions:
 Provide a clear, well-structured answer:"""
 
         response = self.client.chat.completions.create(
-            model="deepseek-chat",
+            model=self.model_name,
             messages=[
                 {
                     "role": "system",
@@ -143,12 +180,34 @@ Provide a clear, well-structured answer:"""
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
-            max_tokens=300
+            **get_token_limit_kwargs(self.model_name, 300)
         )
 
         answer = response.choices[0].message.content.strip()
-        logger.info(f"LLM generated answer: {answer[:100]}...")
+        logger.info("LLM generated answer preview: %r", answer[:100])
         return answer
+
+    def _is_effective_answer(self, answer: str) -> bool:
+        """Reject empty or placeholder-only model outputs before showing them to users."""
+        if not answer:
+            return False
+
+        normalized = " ".join(answer.split()).strip().lower()
+        if not normalized:
+            return False
+
+        low_information_answers = {
+            ".", "..", "...", "n/a", "na", "none", "unknown",
+            "no answer", "no answer available"
+        }
+        if normalized in low_information_answers:
+            return False
+
+        content_chars = [ch for ch in normalized if ch.isalnum()]
+        if len(content_chars) < 8:
+            return False
+
+        return True
 
     def _synthesize_answer_simple(self, question: str, evidence_list: List[Dict]) -> str:
         """简单的基于证据的答案生成（回退方案）"""
@@ -160,6 +219,8 @@ Provide a clear, well-structured answer:"""
         answer_sentences = sentences[:2]
 
         answer = '. '.join(s.strip() for s in answer_sentences if s.strip())
+        if not answer:
+            answer = top_evidence.strip()
         if answer and not answer.endswith('.'):
             answer += '.'
 

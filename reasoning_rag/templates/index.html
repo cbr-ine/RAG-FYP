@@ -283,6 +283,24 @@
       gap: 8px;
     }
 
+    .header-btn {
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text-secondary);
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s, border-color .2s, color .2s;
+    }
+
+    .header-btn:hover {
+      background: var(--bg);
+      border-color: #c5cad4;
+      color: var(--text-primary);
+    }
+
     .status-badge {
       display: flex;
       align-items: center;
@@ -727,6 +745,151 @@
 
     .toast.show { display: block; animation: slideUp .3s ease; }
 
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(17, 24, 39, .45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 20px;
+    }
+
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      width: min(680px, 100%);
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .modal-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .modal-subtitle {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 3px;
+    }
+
+    .modal-close {
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .modal-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .upload-dropzone {
+      border: 2px dashed #cbd5e1;
+      border-radius: 14px;
+      padding: 22px;
+      text-align: center;
+      background: #f8fafc;
+      cursor: pointer;
+    }
+
+    .upload-dropzone:hover {
+      border-color: #93c5fd;
+      background: var(--accent-light);
+    }
+
+    .upload-dropzone input {
+      display: none;
+    }
+
+    .upload-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .upload-field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .upload-field input,
+    .upload-field select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .upload-file-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 180px;
+      overflow: auto;
+    }
+
+    .upload-file-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      font-size: 12.5px;
+    }
+
+    .modal-footer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .btn-primary-lite {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-primary-lite:disabled {
+      background: #cbd5e1;
+      cursor: not-allowed;
+    }
+
     @keyframes slideUp {
       from { transform: translateY(20px); opacity: 0; }
       to   { transform: translateY(0);   opacity: 1; }
@@ -785,9 +948,10 @@
       </div>
     </div>
     <div class="header-right">
-      <div class="status-badge">
+      <button class="header-btn" onclick="openImportModal()">Import Docs</button>
+      <div class="status-badge" id="kb-status-badge">
         <span class="status-dot"></span>
-        Online
+        Knowledge Base Ready
       </div>
     </div>
   </header>
@@ -842,6 +1006,55 @@
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
+<!-- Import modal -->
+<div class="modal-backdrop" id="import-modal">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Import Documents</div>
+        <div class="modal-subtitle">Upload external files and rebuild the active knowledge base.</div>
+      </div>
+      <button class="modal-close" onclick="closeImportModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <label class="upload-dropzone" for="import-files">
+        <input id="import-files" type="file" multiple
+               accept=".txt,.md,.pdf,.json,.jsonl,.csv,.tsv"
+               onchange="handleImportFiles(this.files)">
+        <div style="font-size:28px;margin-bottom:10px">📄</div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:6px">Choose documents to import</div>
+        <div style="font-size:12px;color:var(--text-secondary)">Supported: TXT, MD, PDF, JSON, JSONL, CSV, TSV</div>
+      </label>
+
+      <div class="upload-meta">
+        <div class="upload-field">
+          <label for="import-mode">Import Mode</label>
+          <select id="import-mode">
+            <option value="append">Append to current index</option>
+            <option value="overwrite">Overwrite current index</option>
+          </select>
+        </div>
+        <div class="upload-field">
+          <label for="import-chunk-size">Chunk Size (words)</label>
+          <input id="import-chunk-size" type="number" min="80" max="500" value="180">
+        </div>
+        <div class="upload-field" style="grid-column:1 / -1">
+          <label for="import-text-field">Preferred Text Field (for JSON/CSV, optional)</label>
+          <input id="import-text-field" type="text" placeholder="e.g. text, abstract, content">
+        </div>
+      </div>
+
+      <div class="upload-file-list" id="import-file-list">
+        <div style="font-size:12px;color:var(--text-secondary)">No files selected yet.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="header-btn" onclick="closeImportModal()">Cancel</button>
+      <button class="btn-primary-lite" id="import-submit-btn" onclick="submitImport()" disabled>Import and Index</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ═══════════════════════════════════════════════
    State
@@ -849,6 +1062,7 @@
 let conversations = [];   // [{id, title, messages:[]}]
 let activeId = null;
 let isLoading = false;
+let importFiles = [];
 
 function activeConv() {
   return conversations.find(c => c.id === activeId) || null;
@@ -878,6 +1092,7 @@ function setActive(id) {
 
 function deleteConv(id, e) {
   e.stopPropagation();
+  clearConversationKnowledgeBase(id);
   conversations = conversations.filter(c => c.id !== id);
   if (activeId === id) {
     activeId = conversations.length ? conversations[0].id : null;
@@ -987,6 +1202,9 @@ function makeBotBubble(msg) {
   const confColor = d.confidence > .7 ? 'pill-green'
                   : d.confidence > .4 ? 'pill-amber'
                   : 'pill-gray';
+  const vScoreColor = d.v_score > .8 ? 'pill-blue'
+                    : d.v_score > .55 ? 'pill-amber'
+                    : 'pill-gray';
 
   let detailsHtml = '';
 
@@ -1025,6 +1243,20 @@ function makeBotBubble(msg) {
     );
   }
 
+  /* Transparency card */
+  if (d.transparency) {
+    const t = d.transparency;
+    detailsHtml += detailCard('🔎', 'Transparency',
+      `<span class="pill pill-blue">V-Score: ${(d.v_score * 100).toFixed(0)}%</span>` +
+      `<span class="pill pill-gray">Analysis: ${(t.query_analysis_visibility * 100).toFixed(0)}%</span>` +
+      `<span class="pill pill-gray">Reasoning Path: ${(t.reasoning_path_visibility * 100).toFixed(0)}%</span>` +
+      `<span class="pill pill-gray">Traceability: ${(t.evidence_traceability * 100).toFixed(0)}%</span>` +
+      `<span class="pill pill-gray">Provenance: ${(t.provenance_completeness * 100).toFixed(0)}%</span>` +
+      `<span class="pill pill-gray">Decomposition: ${(t.decomposition_visibility * 100).toFixed(0)}%</span>` +
+      `<span class="pill pill-gray">Retrieval Path: ${(t.retrieval_path_visibility * 100).toFixed(0)}%</span>`
+    );
+  }
+
   /* Evidence card */
   if (d.evidence && d.evidence.length) {
     const items = d.evidence.map(e => `
@@ -1047,6 +1279,9 @@ function makeBotBubble(msg) {
       <div class="msg-bubble">
         <span class="pill ${confColor}" style="margin-bottom:8px;display:inline-block">
           Confidence: ${(d.confidence * 100).toFixed(0)}%
+        </span>
+        <span class="pill ${vScoreColor}" style="margin-bottom:8px;display:inline-block">
+          V-Score: ${(d.v_score * 100).toFixed(0)}%
         </span><br/>
         ${escHtml(d.answer)}
       </div>
@@ -1119,7 +1354,7 @@ async function sendQuestion() {
     const res = await fetch('/api/query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question })
+      body: JSON.stringify({ question, conversation_id: String(conv.id) })
     });
     const json = await res.json();
     typingEl.remove();
@@ -1162,6 +1397,102 @@ function appendTyping() {
 }
 
 /* ═══════════════════════════════════════════════
+   Document Import
+═══════════════════════════════════════════════ */
+function openImportModal() {
+  document.getElementById('import-modal').classList.add('open');
+}
+
+function closeImportModal() {
+  document.getElementById('import-modal').classList.remove('open');
+}
+
+function handleImportFiles(fileList) {
+  importFiles = Array.from(fileList || []);
+  renderImportFiles();
+}
+
+function renderImportFiles() {
+  const list = document.getElementById('import-file-list');
+  const submitBtn = document.getElementById('import-submit-btn');
+
+  if (!importFiles.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--text-secondary)">No files selected yet.</div>';
+    submitBtn.disabled = true;
+    return;
+  }
+
+  list.innerHTML = importFiles.map(file => `
+    <div class="upload-file-item">
+      <span>${escHtml(file.name)}</span>
+      <span style="color:var(--text-secondary)">${formatFileSize(file.size)}</span>
+    </div>
+  `).join('');
+  submitBtn.disabled = false;
+}
+
+async function submitImport() {
+  if (!activeId) {
+    newChat();
+  }
+  const conv = activeConv();
+  if (!importFiles.length) {
+    showToast('Please choose at least one document.');
+    return;
+  }
+
+  const submitBtn = document.getElementById('import-submit-btn');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Importing...';
+
+  const formData = new FormData();
+  importFiles.forEach(file => formData.append('files', file));
+  formData.append('conversation_id', String(conv.id));
+  formData.append('mode', document.getElementById('import-mode').value);
+  formData.append('chunk_size', document.getElementById('import-chunk-size').value);
+  formData.append('text_field', document.getElementById('import-text-field').value.trim());
+
+  try {
+    const res = await fetch('/api/import-documents', {
+      method: 'POST',
+      body: formData
+    });
+    const json = await res.json();
+
+    if (!json.ok) {
+      throw new Error(json.error || 'Import failed');
+    }
+
+    const summary = json.data;
+    document.getElementById('kb-status-badge').innerHTML =
+      `<span class="status-dot"></span>${summary.chunk_count} temp chunk(s)`;
+    showToast(summary.message);
+    importFiles = [];
+    document.getElementById('import-files').value = '';
+    renderImportFiles();
+    closeImportModal();
+  } catch (err) {
+    showToast(err.message);
+  } finally {
+    submitBtn.disabled = !importFiles.length;
+    submitBtn.textContent = 'Import and Index';
+  }
+}
+
+async function clearConversationKnowledgeBase(conversationId) {
+  if (!conversationId) return;
+  try {
+    await fetch('/api/conversation-kb', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation_id: String(conversationId) })
+    });
+  } catch (err) {
+    console.warn('Failed to clear temporary conversation KB:', err);
+  }
+}
+
+/* ═══════════════════════════════════════════════
    Helpers
 ═══════════════════════════════════════════════ */
 function showWelcome(show) {
@@ -1197,6 +1528,12 @@ function formatTime(ts) {
   return new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatFileSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function escHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -1212,6 +1549,8 @@ function showToast(msg) {
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 5000);
 }
+
+document.getElementById('import-modal').addEventListener('click', closeImportModal);
 </script>
 </body>
 </html>
